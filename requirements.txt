@@ -8,3 +8,4 @@ chart_studio==1.1.0
 pandas==1.2.0
 altair==4.1.0
 scikit_learn==0.24.1
+seaborn==0.11.1
