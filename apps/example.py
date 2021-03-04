@@ -21,6 +21,7 @@ from sktime.forecasting.model_selection import temporal_train_test_split
 from contextlib import contextmanager, redirect_stdout
 from io import StringIO
 import sys
+import pmdarima as pm
 register_matplotlib_converters()
 _lock = RendererAgg.lock
 
@@ -183,8 +184,8 @@ def app():
     Part for creating web page
     """
     state = _get_state()
-    st.title('We are going to show the application of ARIMA model in python using various libraries, including sktime, statsmodels, and pandas')
-    st.write('Firstly, we need to import dependencies')
+    st.title('Туториал по исследованию временных рядов при помощи Python.')
+    st.write('Мы рассмотрим как работать с ARIMA-моделью в Python. Есть несколько различных библиотек, которые позволяют исследовать временные ряды. Мы решили использовать sktime, statsmodels, и классическую библиотеку pandas. Где это будет возможно, мы даже сравним возможности этих библиотек, хотя в основном наш выбор пал на самие понятные и негромоздкие решения.')
 
     code1 = """
     import numpy as np
@@ -197,10 +198,11 @@ def app():
     from sktime.utils.plotting import plot_series
     from pandas.plotting import register_matplotlib_converters
     from sktime.forecasting.model_selection import temporal_train_test_split
+    import pmdarima as pm
     register_matplotlib_converters()
             """
     st.code(code1, language="python")
-    st.write("Secondly, let's download dataset and plot it")
+    st.write("Для начала, рассмотрим самые стандартные операции с времеными рядами. У нас есть шаблонный набор даных об авиаперелётах, собранный по конкретонй компании. В следующих нескольких строках мы просто загружаем эти самые данные, и что-нибудь делаем. Если конкретней, строим график, делаем train-test split. Это, в целом, стандартный подход к временным рядам, но от этого не менее важный.")
     code2 = """
     y = load_airline()
     plot_series(y)
@@ -208,7 +210,7 @@ def app():
     st.code(code2, language="python")
     y, df, rolling_mean, rolling_std = load_dataset()
     st.line_chart(df)
-    st.write("Let's split data to train and test and plot it")
+    st.write("На получившийся график можно взглянуть повнимательней. Сразу видна сезонность данных, явные пики и проседания, Ну и прииерно на глазок можно углядеть тренд на увеличение среднегодового колличества пассажиров, даже несмотря на сезонные провалы.")
     code3 = """
     y_train, y_test = temporal_train_test_split(y, test_size=24)
     plot_series(y_train, y_test, labels=['Train', 'Test'])
@@ -222,8 +224,9 @@ def app():
             y_train, y_test, labels=['Train', 'Test'])
         st.pyplot(fig0)
 
-    st.write("Now we use pandas methods to calculate rolling mean and standard deviation, and make the corresponding plot")
+    st.write("А вот тут мы уже сделали разбивку данных на тестовый и обучающий набор. Синим обозначен обучающий, а золотым - тестовый.")
 
+    st.write("Посмотрим на график. Синим показано наблюдаемое количество пассажиров авиалиний. Красным показано скользящее среднее, а чёрным - скользящее стандартное отклонение.")
     code4 = """
     df = pd.DataFrame(y)
     df.index = df.index.to_timestamp()
@@ -252,7 +255,7 @@ def app():
         st.pyplot(fig1)
 
     y = y
-    st.write("Then we use the augmented Dickey-Fuller test, and show the results.")
+    st.write("Здесь мы переходим к немного более сложным вещам. Мы применяем к нашему ряду расширенный тест Дики - Фуллера.")
     with st.echo():
         result = adfuller(y)
         print('ADF Statistic: {}'.format(result[0]))
@@ -260,6 +263,10 @@ def app():
         print('Critical Values:')
         for key, value in result[4].items():
             print("\t{}: {}".format(key, value))
+        if result[0] > result[4]["5%"]:
+            print("Не удалось отклонить нулевую гипотезу - временной ряд нестационарный")
+        else:
+            print("Нулевая гипотеза отклонена – временной ряд стационарен")
 
     st.text("Output:")
     output = st.empty()
@@ -270,6 +277,10 @@ def app():
         print('Critical Values:')
         for key, value in result[4].items():
             print("\t{}: {}".format(key, value))
+        if result[0] > result[4]["5%"]:
+            print("Не удалось отклонить нулевую гипотезу - временной ряд нестационарный")
+        else:
+            print("Нулевая гипотеза отклонена – временной ряд стационарен")
 
     code5 = """
     df_log = np.log(y)
@@ -287,7 +298,7 @@ def app():
         ax2.set_title('Logged number of airline passengers')
         st.pyplot(fig2)
 
-    st.write("Precise function to plot the series with rolling mean and rolling standard deviation, which also shows the results of a Augmented Dickey-Fuller test")
+    st.write("Далее будет функция, считающая наши скользящие средние, делающая тест Дики - Фуллера, и заодно показывающая график.")
 
     with st.echo():
         def get_stationarity(timeseries):
@@ -311,7 +322,13 @@ def app():
             print('Critical Values:')
             for key, value in result[4].items():
                 print('\t{}: {}'.format(key, value))
-    st.write("It is important to note that we adjust the data here before we use the function by substracting the mean")
+            if result[0] > result[4]["5%"]:
+                print(
+                    "Не удалось отклонить нулевую гипотезу - временной ряд нестационарный")
+            else:
+                print("Нулевая гипотеза отклонена – временной ряд стационарен")
+
+    st.write("Отметим, что тут мы немного корректируем данные, вычитая среднее.")
 
     code6 = """
     rolling_mean = df_log.rolling(window=12).mean()
@@ -346,5 +363,162 @@ def app():
         print('Critical Values:')
         for key, value in result[4].items():
             print("\t{}: {}".format(key, value))
+        if result[0] > result[4]["5%"]:
+            print("Не удалось отклонить нулевую гипотезу - временной ряд нестационарный")
+        else:
+            print("Нулевая гипотеза отклонена – временной ряд стационарен")
+    st.write("График сверху показывает получившийся результат. Поверх количества пассажиров можно увидеть скользящие соеднее и стандартное отклонение.")
+    code7 = """
+    rolling_mean_exp_decay = df_log.ewm(halflife=12, min_periods=0, adjust=True).mean()
+    df_log_exp_decay = df_log - rolling_mean_exp_decay
+    df_log_exp_decay.dropna(inplace=True)
+    get_stationarity(df_log_exp_decay)
+    """
+    st.code(code7, language="python")
+    rolling_mean_exp_decay = df_log.ewm(
+        halflife=12, min_periods=0, adjust=True).mean()
 
+    df_log_exp_decay = df_log - rolling_mean_exp_decay
+    df_log_exp_decay.dropna(inplace=True)
+    rolling_mean_log_exp_decay = df_log_exp_decay.rolling(
+        window=12).mean()
+    rolling_std_log_exp_decay = df_log_exp_decay.rolling(
+        window=12).std()
+    with _lock:
+        fig4, ax4 = plots(df_log_exp_decay, rolling_mean_log_exp_decay,
+                          rolling_std_log_exp_decay, 'Number of airline passengers')
+        st.pyplot(fig4)
+    output1 = st.empty()
+    with st_capture(output1.code):
+        result = adfuller(df_log_exp_decay)
+        print('ADF Statistic: {}'.format(result[0]))
+        print('p-value: {}'.format(result[1]))
+        print('Critical Values:')
+        for key, value in result[4].items():
+            print("\t{}: {}".format(key, value))
+        if result[0] > result[4]["5%"]:
+            print("Не удалось отклонить нулевую гипотезу - временной ряд нестационарный")
+        else:
+            print("Нулевая гипотеза отклонена – временной ряд стационарен")
+    code8 = """
+    df_log_shift = df_log - df_log.shift()
+    df_log_shift.dropna(inplace=True)
+    get_stationarity(df_log_shift)
+    """
+    st.code(code8, language="python")
+    df_log_shift = df_log - df_log.shift()
+
+    df_log_shift.dropna(inplace=True)
+    rolling_mean_shift = df_log_shift.rolling(
+        window=12).mean()
+    rolling_std_shift = df_log_shift.rolling(
+        window=12).std()
+    with _lock:
+        fig5, ax5 = plots(df_log_shift, rolling_mean_shift,
+                          rolling_std_shift, 'Number of airline passengers')
+        st.pyplot(fig5)
+    output2 = st.empty()
+    with st_capture(output2.code):
+        result = adfuller(df_log_shift)
+        print('ADF Statistic: {}'.format(result[0]))
+        print('p-value: {}'.format(result[1]))
+        print('Critical Values:')
+        for key, value in result[4].items():
+            print("\t{}: {}".format(key, value))
+        if result[0] > result[4]["5%"]:
+            print("Не удалось отклонить нулевую гипотезу - временной ряд нестационарный")
+        else:
+            print("Нулевая гипотеза отклонена – временной ряд стационарен")
+    st.write("Мы рассмотрели как можно изменять датасет для того, чтобы получить стационарный временной ряд. Теперь мы применим autoarima, для автоматического расчета оптимальных параметров модели")
+
+    model = pm.auto_arima(y_train, seasonal=True, m=12)
+
+    # make your forecasts
+    # predict N steps into the future
+    forecasts = model.predict(y_test.shape[0])
+
+    x = np.arange(y.shape[0])
+    code9 = """
+model = pm.auto_arima(y_train, seasonal=True, m=12)
+
+forecasts = model.predict(y_test.shape[0])
+
+x = np.arange(y.shape[0])
+plt.plot(x[:120], y_train, c='blue')
+plt.plot(x[120:], forecasts, c='green')
+plt.show()
+    """
+    st.code(code9, language="python")
+
+    st.write("Приведенный код обучает модель с автоподбором параметров на тренировочных данных (y_train), строит прогноз на количество элементов в тестовых данных, а затем мы строим график прогнозных значений")
+    fig6, ax6 = plt.subplots()
+    ax6.plot(x[:120], y_train, c='blue', label='Тренировочные данные')
+    ax6.plot(x[120:], forecasts, c='green', label='Предсказанные значения')
+    ax6.legend(loc='best')
+    st.pyplot(fig6)
+
+    st.write('Теперь посмотрим какие параметры у нашей модели')
+    code10 = """
+model.summary()
+    """
+    st.code(code10, language="python")
+    output3 = st.empty()
+    with st_capture(output3.code):
+        print(model.summary())
+
+    code11 = """
+# Create predictions for the future, evaluate on test
+preds, conf_int = model.predict(
+    n_periods=y_test.shape[0], return_conf_int=True)
+
+# #############################################################################
+# Plot the points and the forecasts
+
+df.index = df.index.to_timestamp()
+
+plt.plot(df.index[:y_train.shape[0]], y_train, alpha=0.75)
+plt.plot(df.index[y_train.shape[0]:], preds, alpha=0.75)  # Forecasts
+plt.scatter(df.index[y_train.shape[0]:], y_test,
+            alpha=0.4, marker='x')  # Test data
+plt.fill_between(df.index[-preds.shape[0]:],
+                 conf_int[:, 0], conf_int[:, 1],
+                 alpha=0.1, color='b')
+    """
+    st.code(code11, language="python")
+    st.write(
+        "Теперь мы построим график предсказаний, а Х будут обозначать реальные данные")
+    # Create predictions for the future, evaluate on test
+    preds, conf_int = model.predict(
+        n_periods=y_test.shape[0], return_conf_int=True)
+
+    # #############################################################################
+    # Plot the points and the forecasts
+
+    fig7, ax7 = plt.subplots()
+    ax7.plot(df.index[:y_train.shape[0]], y_train, alpha=0.75)
+    ax7.plot(df.index[y_train.shape[0]:], preds, alpha=0.75)  # Forecasts
+    ax7.scatter(df.index[y_train.shape[0]:], y_test,
+                alpha=0.4, marker='x')  # Test data
+    ax7.fill_between(df.index[-preds.shape[0]:],
+                     conf_int[:, 0], conf_int[:, 1],
+                     alpha=0.1, color='b')
+    st.pyplot(fig7)
+    st.write(
+        "Как мы видим, модель достаточно точно описала график, давайте теперь оценим нашу модель метрикой MAPE (средняя абсолютная ошибка в процентах)")
+    code12 = """
+def mean_absolute_percentage_error(y_true, y_pred): 
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
+print(mean_absolute_percentage_error(y_test, preds))
+    """
+    st.code(code12, language="python")
+    output4 = st.empty()
+    with st_capture(output4.code):
+        def mean_absolute_percentage_error(y_true, y_pred):
+            y_true, y_pred = np.array(y_true), np.array(y_pred)
+            return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
+        print(mean_absolute_percentage_error(y_test, preds))
+    st.write("10% отклонение выглядит отлично, модель справилась на ура")
     state.sync()

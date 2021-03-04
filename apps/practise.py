@@ -126,10 +126,12 @@ def app():
     state = _get_state()
 
     st.title("ARIMA модель")
-    uploaded_file = st.sidebar.file_uploader(
+    state.uploaded_file = st.sidebar.file_uploader(
         "Выберите файл", type=['csv', 'xlsx', 'xls'])
 
-    if uploaded_file is not None:
-        state.data_frame = reading_data_frame(uploaded_file)
+    if state.uploaded_file is not None:
+        state.data_frame = reading_data_frame(state.uploaded_file)
+    else:
+        st.write("Загрузите файл для начала работы")
 
     state.sync()
